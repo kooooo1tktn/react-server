@@ -9,6 +9,7 @@ import { build as viteBuild } from "vite";
 import { forRoot } from "../../config/index.mjs";
 import configPrebuilt from "../plugins/config-prebuilt.mjs";
 import fileRouter from "../plugins/file-router/plugin.mjs";
+import importRemotePlugin from "../plugins/import-remote.mjs";
 import reactServerEval from "../plugins/react-server-eval.mjs";
 import resolveWorkspace from "../plugins/resolve-workspace.mjs";
 import rootModule from "../plugins/root-module.mjs";
@@ -31,7 +32,9 @@ const __require = createRequire(import.meta.url);
 const cwd = sys.cwd();
 
 export default async function serverBuild(root, options) {
-  root ||= "@lazarv/react-server/file-router";
+  if (!options.eval) {
+    root ||= "@lazarv/react-server/file-router";
+  }
 
   banner("rsc", options.dev);
   const config = forRoot();
@@ -262,10 +265,7 @@ export default async function serverBuild(root, options) {
             { paths: [cwd] }
           ),
           "server/index":
-            !root &&
-            (!reactServerRouterModule ||
-              options.eval ||
-              (!process.stdin.isTTY && !process.env.CI))
+            !root && (options.eval || (!process.stdin.isTTY && !process.env.CI))
               ? "virtual:react-server-eval.jsx"
               : root?.startsWith("virtual:")
                 ? root
@@ -326,6 +326,7 @@ export default async function serverBuild(root, options) {
       !root || root === "@lazarv/react-server/file-router"
         ? fileRouter(options)
         : [],
+      importRemotePlugin(),
       reactServerEval(options),
       ...buildPlugins,
     ],

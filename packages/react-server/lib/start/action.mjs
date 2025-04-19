@@ -4,15 +4,20 @@ import { isIPv6 } from "node:net";
 import { availableParallelism } from "node:os";
 
 import { loadConfig } from "../../config/prebuilt.mjs";
-import { init$ as runtime_init$, runtime$ } from "../../server/runtime.mjs";
+import {
+  getRuntime,
+  init$ as runtime_init$,
+  runtime$,
+} from "../../server/runtime.mjs";
 import {
   CONFIG_CONTEXT,
   CONFIG_ROOT,
+  LOGGER_CONTEXT,
   SERVER_CONTEXT,
 } from "../../server/symbols.mjs";
-import { getEnv } from "../sys.mjs";
 import { formatDuration } from "../utils/format.mjs";
 import getServerAddresses from "../utils/server-address.mjs";
+import { getServerConfig } from "../utils/server-config.mjs";
 import createLogger from "./create-logger.mjs";
 import createServer from "./create-server.mjs";
 
@@ -42,11 +47,7 @@ async function worker(root, options, config) {
     runtime$(CONFIG_CONTEXT, config);
     const logger = await createLogger(configRoot);
     const server = await createServer(root, options);
-
-    const port = options.port ?? getEnv("PORT") ?? configRoot.port ?? 3000;
-    const host =
-      options.host ?? getEnv("HOST") ?? configRoot.host ?? "localhost";
-    const listenerHost = host === true ? undefined : host;
+    const { port, listenerHost } = getServerConfig(configRoot, options);
 
     const listener = server.listen(port, listenerHost);
     runtime$(SERVER_CONTEXT, listener);
@@ -102,6 +103,10 @@ export default async function start(root, options) {
         });
         process.on("SIGTERM", () => {
           process.exit(0);
+        });
+        process.on("unhandledRejection", (reason) => {
+          const logger = getRuntime(LOGGER_CONTEXT);
+          logger.error(reason);
         });
 
         worker(root, options, config);
